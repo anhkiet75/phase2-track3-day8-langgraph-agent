@@ -9,6 +9,24 @@ from __future__ import annotations
 from .state import AgentState
 
 
+def _approval_approved(state: AgentState) -> bool:
+    approval = state.get("approval")
+    if isinstance(approval, dict):
+        return bool(approval.get("approved"))
+    if approval is not None:
+        return bool(approval.approved)
+    return False
+
+
+def _approval_decision(state: AgentState) -> str:
+    approval = state.get("approval")
+    if isinstance(approval, dict):
+        return str(approval.get("decision", "rejected"))
+    if approval is not None:
+        return approval.decision
+    return "rejected"
+
+
 def route_after_classify(state: AgentState) -> str:
     """Map classified route to the next graph node.
 
@@ -22,7 +40,13 @@ def route_after_classify(state: AgentState) -> str:
 
     Hint: use a dict mapping for clean implementation.
     """
-    raise NotImplementedError("TODO(student): implement route mapping after classify")
+    return {
+        "simple": "answer",
+        "tool": "tool",
+        "missing_info": "clarify",
+        "risky": "risky_action",
+        "error": "retry",
+    }.get(state.get("route", ""), "answer")
 
 
 def route_after_evaluate(state: AgentState) -> str:
@@ -34,7 +58,7 @@ def route_after_evaluate(state: AgentState) -> str:
     - If evaluation_result == "needs_retry" → "retry"
     - Otherwise → "answer"
     """
-    raise NotImplementedError("TODO(student): implement evaluate routing for retry loop")
+    return "retry" if state.get("evaluation_result") == "needs_retry" else "answer"
 
 
 def route_after_retry(state: AgentState) -> str:
@@ -45,7 +69,7 @@ def route_after_retry(state: AgentState) -> str:
     - If attempt < max_attempts → "tool" (try again)
     - If attempt >= max_attempts → "dead_letter" (give up, escalate)
     """
-    raise NotImplementedError("TODO(student): implement bounded retry routing")
+    return "tool" if state.get("attempt", 0) < state.get("max_attempts", 0) else "dead_letter"
 
 
 def route_after_approval(state: AgentState) -> str:
@@ -54,4 +78,9 @@ def route_after_approval(state: AgentState) -> str:
     - If approved → "tool" (proceed with risky action)
     - If rejected → "clarify" (ask user for alternative)
     """
-    raise NotImplementedError("TODO(student): implement approval routing")
+    decision = _approval_decision(state)
+    if _approval_approved(state):
+        return "tool"
+    if decision == "edit":
+        return "edit"
+    return "clarify"

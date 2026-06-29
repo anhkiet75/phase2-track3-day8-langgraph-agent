@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 import typer
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from .graph import build_graph
 from .metrics import MetricsReport, metric_from_state, summarize_metrics, write_metrics
@@ -28,14 +28,28 @@ def run_scenarios(
     cfg = yaml.safe_load(config.read_text(encoding="utf-8"))
     scenarios = load_scenarios(cfg["scenarios_path"])
     checkpointer = build_checkpointer(cfg.get("checkpointer", "memory"), cfg.get("database_url"))
-    graph = build_graph(checkpointer=checkpointer)
+    graph = cast(Any, build_graph(checkpointer=checkpointer))
     metrics = []
+    resume_success = False
     for scenario in scenarios:
         state = initial_state(scenario)
         run_config = {"configurable": {"thread_id": state["thread_id"]}}
         final_state = graph.invoke(state, config=run_config)
-        metrics.append(metric_from_state(final_state, scenario.expected_route.value, scenario.requires_approval))
+        if checkpointer is not None and hasattr(graph, "get_state_history"):
+            try:
+                history = list(graph.get_state_history(run_config))
+                resume_success = resume_success or len(history) > 0
+            except Exception:
+                resume_success = resume_success or False
+        metrics.append(
+            metric_from_state(
+                final_state,
+                scenario.expected_route.value,
+                scenario.requires_approval,
+            )
+        )
     report = summarize_metrics(metrics)
+    report.resume_success = resume_success
     write_metrics(report, output)
     if cfg.get("report_path"):
         write_report(report, cfg["report_path"])

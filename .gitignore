@@ -25,6 +25,8 @@ env/
 checkpoints.db
 checkpoints.db-wal
 checkpoints.db-shm
+outputs/*.sqlite-shm
+outputs/*.sqlite-wal
 
 # Testing
 .pytest_cache/
@@ -38,4 +40,3 @@ htmlcov/
 Thumbs.db
 
 # Hidden grading — do NOT distribute to students
-data/grading/
